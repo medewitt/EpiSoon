@@ -56,28 +56,33 @@ predict_cases <- function(cases = NULL,
   cases <- dplyr::filter(cases, date <= as.Date(forecast_date))
 
   ## Filter rts based on forecast date
+  ## the first rt is then one day ahead of the last observed case
   rts <- rts %>%
     dplyr::filter(date > forecast_date)
 
-  ## Initialise predictions for first time point.
+  ## Calculate from observed cases infectiousness for all forecasted time points
+  ## and make case prediction for first forecasted time point.
   predictions <- rts %>%
     dplyr::mutate(
       index = 1:dplyr::n(),
-      ## Calculate infectiousness from onserved data
+      ## Calculate infectiousness from observed data for all forecasted rts
       infectiousness = purrr::map_dbl(index,
                                  ~ sum(cases$cases * draw_from_si_prob((nrow(cases) + . - 1):.,
                                                            serial_interval))),
+      ## draw predicted case number for the first forecasted rt value
       cases = rdist(1, rt[1] * infectiousness[1]))
 
+  ## make case predictions for all subsequent forecasted time points
   if (nrow(rts) > 1) {
     for(i in 2:nrow(rts)) {
-      ## Previous cases
+      ## get previous predicted cases
       previous_cases <- predictions$cases[1:(i -1)]
-      ## Update infectiousness
+      ## Add infectiousness from previous predicted cases to infectiousness
+      ## from observed cases
       predictions[i, ]$infectiousness <- predictions[i, ]$infectiousness +
         sum(previous_cases * draw_from_si_prob(length(previous_cases):1, serial_interval))
 
-      ## Update cases
+      ## draw predicted cases
       predictions[i, ]$cases <- rdist(1, predictions[i, ]$infectiousness * predictions[i, ]$rt)
     }
   }
