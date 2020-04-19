@@ -33,17 +33,18 @@ predict_current_cases <- function(
   final_rt_date <- max(rts$date, na.rm = TRUE)
 
   ## Get early cases
-  early_cases <- dplyr::filter(cases, date <= first_rt_date)$cases
+  early_cases <- dplyr::filter(cases, date < first_rt_date)$cases
 
   ## Get following cases
   subsequent_cases <- dplyr::filter(cases,
-                                    date > first_rt_date,
+                                    date >= first_rt_date,
                                     date <= final_rt_date)$cases
 
-  ## Build an iterative list of cases
-  cases <- purrr::map(1:length(subsequent_cases), ~ c(early_cases, subsequent_cases[1:.]))
+  ## Build an iterative list of cases such that the first list element
+  ## is all cases observed prior to the first rt value and all subsequent
+  ## elements are all cases before the corresponding rt value
+  cases <- purrr::map(1:(length(subsequent_cases) - 1), ~ c(early_cases, subsequent_cases[1:.]))
   cases <- c(list(early_cases), cases)
-
 
   predictions <-
     dplyr::mutate(rts,
@@ -51,7 +52,7 @@ predict_current_cases <- function(
         purrr::map_dbl(cases,
                        function(cases_vect) {
                          inf <- sum(cases_vect * EpiSoon::draw_from_si_prob(
-                                                          (length(cases_vect) - 1):0,
+                                                          (length(cases_vect)):1,
                                                           serial_interval
                                                           ))
 
